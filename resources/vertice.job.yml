@@ -1,0 +1,169 @@
+# O job vertice_farol: a Torre inteira numa corrida só.
+#
+#   ingestao_feriados ──┐
+#                       ├── conferencia_bronze ── medalhao ──┬── testes_de_qualidade ── ml_features ── ml_modelo ── ml_score
+#   ingestao_data_lake ─┘                                    ├── status_com_ia
+#                                                             └── metricas_governadas  (mv_projetos)
+#
+# As duas ingestões vieram da noite 2 pelo `bundle generate`.
+# As chaves do data lake chegam como parâmetros da tarefa, e o valor
+# delas mora só em .databricks/bundle/dev/variable-overrides.json.
+resources:
+  jobs:
+    vertice_farol:
+      name: vertice_farol
+      tasks:
+        - task_key: ingestao_feriados
+          disabled: false
+          email_notifications: {}
+          environment_key: Default
+          notebook_task:
+            notebook_path: ../src/ingestao/01_ingestao_api_gabarito.py
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+
+        - task_key: ingestao_data_lake
+          disabled: false
+          email_notifications: {}
+          environment_key: Default
+          notebook_task:
+            base_parameters:
+              AWS_ACCESS_KEY_ID: ${var.s3_access_key_id}
+              AWS_DEFAULT_REGION: us-east-1
+              AWS_SECRET_ACCESS_KEY: ${var.s3_secret_access_key}
+              S3_ENDPOINT: https://skeqffxrwyocfczvutfs.storage.supabase.co/storage/v1/s3
+            notebook_path: ../src/ingestao/02_ingestao_boto3_gabarito.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+
+        # O freio de mão: a bronze tem que estar inteira antes da silver.
+        - task_key: conferencia_bronze
+          depends_on:
+            - task_key: ingestao_feriados
+            - task_key: ingestao_data_lake
+          run_if: ALL_SUCCESS
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/conferencia/00-conferencia-bronze.sql
+              source: WORKSPACE
+          timeout_seconds: 0
+
+        # O medalhão: silver e gold no mesmo pipeline declarativo.
+        - task_key: medalhao
+          depends_on:
+            - task_key: conferencia_bronze
+          run_if: ALL_SUCCESS
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.vertice_medalhao.id}
+          timeout_seconds: 0
+
+        # A conferência da bronze pergunta "o dado chegou inteiro?".
+        # Esta pergunta é "a CONTA está certa?": as 21 réguas do seed 42.
+        - task_key: testes_de_qualidade
+          depends_on:
+            - task_key: medalhao
+          run_if: ALL_SUCCESS
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/testes/00-testes-de-qualidade.sql
+              source: WORKSPACE
+          timeout_seconds: 0
+
+        # As features do modelo: uma linha por projeto e por sexta, com o
+        # que se sabia naquela sexta. Pendura nos TESTES, não no medalhão:
+        # dado reprovado não treina modelo.
+        - task_key: ml_features
+          depends_on:
+            - task_key: testes_de_qualidade
+          run_if: ALL_SUCCESS
+          environment_key: Default
+          notebook_task:
+            notebook_path: ../src/ml/01-features.py
+            base_parameters:
+              catalog: ${var.catalog}
+            source: WORKSPACE
+          timeout_seconds: 0
+
+        # A métrica governada: a mesma conta para o dashboard, para o Genie
+        # e para quem abre o SQL editor. Metric view NÃO nasce no pipeline
+        # declarativo, então é sql_task, como a IA e os testes. É DDL puro
+        # (não materializa número), por isso pendura no medalhão e roda em
+        # paralelo com os testes: se uma coluna mudar de nome, o aviso vem
+        # na mesma corrida em que a régua falhou.
+        - task_key: metricas_governadas
+          depends_on:
+            - task_key: medalhao
+          run_if: ALL_SUCCESS
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/metricas/00-mv-projetos.sql
+              source: WORKSPACE
+          timeout_seconds: 0
+
+        # A IA lê o texto do status: só os 163 com bloqueio real dos
+        # últimos 90 dias (~5 s por texto). Não depende dos testes porque
+        # não alimenta o modelo: roda em paralelo com eles.
+        - task_key: status_com_ia
+          depends_on:
+            - task_key: medalhao
+          run_if: ALL_SUCCESS
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/ia/00-status-estruturado.sql
+              source: WORKSPACE
+          timeout_seconds: 0
+
+        # O modelo: treina, mede contra as 4 réguas bobas e só registra
+        # (@prod) se ganhar de todas elas.
+        - task_key: ml_modelo
+          depends_on:
+            - task_key: ml_features
+          run_if: ALL_SUCCESS
+          environment_key: Default
+          notebook_task:
+            notebook_path: ../src/ml/02-modelo.py
+            base_parameters:
+              catalog: ${var.catalog}
+            source: WORKSPACE
+          timeout_seconds: 0
+
+        # O score: carrega o modelo @prod, pontua os 41 projetos em
+        # andamento na semana de 16/10/2026 e escreve a tabela de seis
+        # colunas que o dashboard e o Genie leem. Depende do ml_modelo
+        # porque e ele que publica (e confere) o alias @prod.
+        - task_key: ml_score
+          depends_on:
+            - task_key: ml_modelo
+          run_if: ALL_SUCCESS
+          environment_key: Default
+          notebook_task:
+            notebook_path: ../src/ml/03-score.py
+            base_parameters:
+              catalog: ${var.catalog}
+            source: WORKSPACE
+          timeout_seconds: 0
+
+      email_notifications:
+        no_alert_for_skipped_runs: false
+      environments:
+        - environment_key: Default
+          spec:
+            environment_version: "6"
+      max_concurrent_runs: 1
+      performance_target: PERFORMANCE_OPTIMIZED
+      queue:
+        enabled: true
+      schedule:
+        pause_status: PAUSED
+        quartz_cron_expression: 40 0 7 * * ?
+        timezone_id: America/Sao_Paulo
+      timeout_seconds: 0
+      webhook_notifications: {}

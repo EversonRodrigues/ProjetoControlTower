@@ -1,0 +1,17 @@
+# O dashboard do Projeto Farol como RECURSO do bundle. O JSON ao lado é
+# gerado por scripts/gerar_dashboard.py e versionado junto.
+#
+# dataset_catalog + dataset_schema é o que deixa as queries da gold com o
+# NOME PURO da tabela (FROM projeto_situacao_atual). O que vem da silver
+# aparece com o nome completo (lakehouse_vertice.silver.x), porque o
+# schema padrão aqui é a gold.
+#
+# O campo é warehouse_id -- não `warehouse`.
+resources:
+  dashboards:
+    dashboard_portfolio:
+      display_name: Projeto Farol · Portfólio
+      file_path: ./dashboard-portfolio.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${var.catalog}
+      dataset_schema: gold

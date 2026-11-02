@@ -1,0 +1,353 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "10000000000000000000000000000001",
+        "question": [
+          "Quais projetos estão atrasados, e de quais clientes?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000002",
+        "question": [
+          "Quanto esse atraso vai me custar?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000003",
+        "question": [
+          "Tenho gente parada enquanto outro projeto pede gente?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000004",
+        "question": [
+          "O que vai dar errado no próximo mês?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "lakehouse_vertice.gold.fato_projeto_semana"
+      },
+      {
+        "identifier": "lakehouse_vertice.gold.mv_projetos"
+      },
+      {
+        "identifier": "lakehouse_vertice.gold.projeto_situacao_atual"
+      },
+      {
+        "identifier": "lakehouse_vertice.gold.score_estouro_30d"
+      },
+      {
+        "identifier": "lakehouse_vertice.gold.status_estruturado"
+      },
+      {
+        "identifier": "lakehouse_vertice.gold.utilizacao_pessoa_semana"
+      },
+      {
+        "identifier": "lakehouse_vertice.silver.entregas_fornecedor"
+      }
+    ]
+  },
+  "instructions": {
+    "example_question_sqls": [
+      {
+        "id": "20000000000000000000000000000001",
+        "question": [
+          "Quais projetos estão atrasados, e de quais clientes?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    projeto_id,\n",
+          "    nome_projeto,\n",
+          "    cliente,\n",
+          "    gerente_projeto,\n",
+          "    round(spi, 2)                  AS spi,\n",
+          "    round(cpi, 2)                  AS cpi,\n",
+          "    situacao,\n",
+          "    farol_do_gerente,\n",
+          "    farol_calculado,\n",
+          "    melancia,\n",
+          "    round(atraso_projetado_dias)   AS atraso_projetado_dias\n",
+          "FROM lakehouse_vertice.gold.projeto_situacao_atual\n",
+          "WHERE status = 'em_andamento'\n",
+          "  AND least(spi, cpi) < 0.9\n",
+          "ORDER BY least(spi, cpi)\n"
+        ]
+      },
+      {
+        "id": "20000000000000000000000000000002",
+        "question": [
+          "Quanto esse atraso vai me custar?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    MEASURE(projetos)            AS projetos_em_andamento,\n",
+          "    MEASURE(carteira)            AS carteira,\n",
+          "    MEASURE(estouro_previsto)    AS estouro_previsto,\n",
+          "    MEASURE(margem_projetada)    AS margem_projetada,\n",
+          "    MEASURE(projetos_criticos)   AS criticos,\n",
+          "    MEASURE(projetos_em_atencao) AS em_atencao\n",
+          "FROM lakehouse_vertice.gold.mv_projetos\n",
+          "WHERE status = 'em_andamento'\n",
+          "GROUP BY ALL\n"
+        ]
+      },
+      {
+        "id": "20000000000000000000000000000003",
+        "question": [
+          "Tenho gente parada enquanto outro projeto pede gente?"
+        ],
+        "sql": [
+          "WITH uso_12_semanas AS (\n",
+          "  SELECT\n",
+          "      colaborador_id,\n",
+          "      nome,\n",
+          "      papel,\n",
+          "      senioridade,\n",
+          "      max_by(projeto_principal, horas_apontadas)               AS projeto_principal,\n",
+          "      sum(horas_apontadas) / nullif(sum(horas_disponiveis), 0) AS pct_utilizacao_12s\n",
+          "  FROM lakehouse_vertice.gold.utilizacao_pessoa_semana\n",
+          "  WHERE semana BETWEEN date_sub(DATE'2026-10-16', 77) AND DATE'2026-10-16'\n",
+          "  GROUP BY colaborador_id, nome, papel, senioridade\n",
+          "),\n",
+          "projetos_que_pedem_gente AS (\n",
+          "  SELECT\n",
+          "      projeto_id,\n",
+          "      count(*)          AS semanas_pedindo_gente,\n",
+          "      sum(dias_impacto) AS dias_declarados\n",
+          "  FROM lakehouse_vertice.gold.status_estruturado\n",
+          "  WHERE data_status >= date_sub(DATE'2026-10-16', 90)\n",
+          "    AND falta_de_gente\n",
+          "  GROUP BY projeto_id\n",
+          ")\n",
+          "SELECT\n",
+          "    u.colaborador_id,\n",
+          "    u.nome,\n",
+          "    u.papel,\n",
+          "    u.senioridade,\n",
+          "    round(100 * u.pct_utilizacao_12s, 1) AS pct_uso_12s,\n",
+          "    u.projeto_principal                  AS parada_no_projeto,\n",
+          "    (SELECT count(*) FROM projetos_que_pedem_gente) AS projetos_pedindo_gente\n",
+          "FROM uso_12_semanas u\n",
+          "WHERE u.pct_utilizacao_12s < 0.20\n",
+          "ORDER BY u.pct_utilizacao_12s\n"
+        ]
+      },
+      {
+        "id": "20000000000000000000000000000004",
+        "question": [
+          "O que vai dar errado no próximo mês?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    s.ranking,\n",
+          "    s.projeto_id,\n",
+          "    p.nome_projeto,\n",
+          "    p.cliente,\n",
+          "    p.segmento,\n",
+          "    round(s.prob_estouro_30d, 3) AS prob_estouro_30d,\n",
+          "    s.faixa_risco,\n",
+          "    s.principais_fatores,\n",
+          "    p.entregas_em_atraso,\n",
+          "    (p.segmento = 'varejo'\n",
+          "      AND p.tipo_projeto IN ('Nova plataforma de e-commerce',\n",
+          "                             'Checkout e meios de pagamento',\n",
+          "                             'Marketplace de sellers',\n",
+          "                             'Integração omnichannel')\n",
+          "      AND p.data_fim_baseline >= DATE'2026-11-01') AS exposto_ao_change_freeze\n",
+          "FROM lakehouse_vertice.gold.score_estouro_30d s\n",
+          "JOIN lakehouse_vertice.gold.projeto_situacao_atual p USING (projeto_id)\n",
+          "WHERE s.data_referencia = DATE'2026-10-16'\n",
+          "ORDER BY s.ranking\n",
+          "LIMIT 10\n"
+        ]
+      },
+      {
+        "id": "20000000000000000000000000000005",
+        "question": [
+          "Por que o projeto PRJ-011 atrasou?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    e.projeto_id,\n",
+          "    e.categoria_bloqueio,\n",
+          "    count(*)                   AS semanas_com_esse_bloqueio,\n",
+          "    sum(e.dias_impacto)        AS dias_declarados,\n",
+          "    count_if(e.falta_de_gente) AS semanas_citando_falta_de_gente,\n",
+          "    max(e.corpo_bloqueio)      AS exemplo_do_texto\n",
+          "FROM lakehouse_vertice.gold.status_estruturado e\n",
+          "WHERE e.projeto_id = 'PRJ-011'\n",
+          "  AND e.data_status >= date_sub(DATE'2026-10-16', 90)\n",
+          "GROUP BY e.projeto_id, e.categoria_bloqueio\n",
+          "ORDER BY semanas_com_esse_bloqueio DESC\n"
+        ]
+      },
+      {
+        "id": "20000000000000000000000000000006",
+        "question": [
+          "Qual fornecedor atrasa mais as entregas?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    fornecedor,\n",
+          "    count(DISTINCT fornecedor_como_veio)                   AS grafias_no_cadastro,\n",
+          "    count(*)                                               AS entregas,\n",
+          "    round(avg(prazo_real_dias\n",
+          "              / nullif(prazo_prometido_dias, 0)), 2)       AS prazo_real_sobre_prometido,\n",
+          "    round(100.0 * count_if(NOT em_aberto AND dias_de_atraso_na_entrega <= 0)\n",
+          "          / nullif(count_if(NOT em_aberto), 0), 0)         AS pct_no_prazo,\n",
+          "    count_if(em_atraso)                                    AS em_atraso_hoje\n",
+          "FROM lakehouse_vertice.silver.entregas_fornecedor\n",
+          "GROUP BY fornecedor\n",
+          "ORDER BY prazo_real_sobre_prometido DESC NULLS LAST\n"
+        ]
+      }
+    ],
+    "text_instructions": [
+      {
+        "id": "30000000000000000000000000000001",
+        "content": [
+          "QUEM PERGUNTA. O dono da Vértice Tecnologia e a diretoria. Eles não escrevem SQL.\n",
+          "Responda em português do Brasil, em frases curtas, citando projeto_id e cliente quando a\n",
+          "resposta for sobre projeto, e dinheiro em reais com vírgula decimal (R$ 6,47 mi). Se a\n",
+          "pergunta for ambígua, responda a leitura mais útil e diga qual leitura você usou.\n",
+          "\n",
+          "O HOJE DO DADO É 16/10/2026 (sexta). NUNCA use current_date(): o número mudaria todo dia\n",
+          "e não bateria com o de ninguém. Escreva sempre DATE'2026-10-16'.\n",
+          "  - \"últimos 90 dias\" = data_status >= date_sub(DATE'2026-10-16', 90)\n",
+          "  - \"12 semanas\"      = semana BETWEEN date_sub(DATE'2026-10-16', 77) AND DATE'2026-10-16'\n",
+          "                        (as 11 sextas anteriores mais a de hoje)\n",
+          "  - \"último mês / últimas 4 semanas\" = 25/09, 02/10, 09/10 e 16/10 de 2026\n",
+          "  - \"próximo mês\"     = de 17/10/2026 a 16/11/2026\n",
+          "\n",
+          "QUAL TABELA USAR.\n",
+          "  - TOTAL DE HOJE, em qualquer corte (cliente, segmento, tipo de projeto, ferramenta,\n",
+          "    gerente, status, situação, farol): gold.mv_projetos, com MEASURE(). É a métrica\n",
+          "    governada. Medidas disponíveis: projetos, carteira, orcamento, custo_real, ev, spi,\n",
+          "    cpi, eac, estouro_previsto, margem_projetada, projetos_em_risco, projetos_criticos,\n",
+          "    projetos_em_atencao, melancias, atraso_projetado_dias. Para \"em andamento\" filtre\n",
+          "    WHERE status = 'em_andamento'.\n",
+          "  - RANKING, LISTA E DETALHE DE PROJETO: gold.projeto_situacao_atual, uma linha por\n",
+          "    projeto (60 linhas), já com o cadastro. Toda pergunta \"quais projetos\" ou \"top N\"\n",
+          "    vem daqui, nunca da mv_projetos.\n",
+          "  - SÉRIE SEMANAL E TENDÊNCIA: gold.fato_projeto_semana (projeto x sexta).\n",
+          "  - POR QUE O PROJETO ATRASOU: gold.status_estruturado.\n",
+          "  - GENTE PARADA: gold.utilizacao_pessoa_semana.\n",
+          "  - FORNECEDOR: silver.entregas_fornecedor.\n",
+          "  - O QUE VAI DAR ERRADO NO PRÓXIMO MÊS: gold.score_estouro_30d.\n",
+          "\n",
+          "AS FÓRMULAS E AS REGRAS DE CORTE (manual da Vértice).\n",
+          "  SPI = EV / PV. Abaixo de 1 é atraso.\n",
+          "  CPI = EV / AC. Abaixo de 1 é estouro.\n",
+          "  EAC = orçamento / CPI. Estouro previsto = EAC - orçamento, só quando positivo.\n",
+          "  Margem projetada = (valor do contrato - EAC) / valor do contrato.\n",
+          "  Atraso projetado em dias = duração baseline / SPI - duração baseline.\n",
+          "  indice_min = o pior entre SPI e CPI, e é ele que manda.\n",
+          "  CORTE: SPI ou CPI abaixo de 0,9 é ATENÇÃO. Abaixo de 0,8 é CRÍTICO.\n",
+          "  SPI E CPI SÃO RAZÕES. Para o índice de um GRUPO use MEASURE(spi) e MEASURE(cpi) na\n",
+          "  mv_projetos. NUNCA AVG(spi) nem AVG(cpi): média de razão dá o número errado, porque um\n",
+          "  projeto de R$ 200 mil pesaria igual a um de R$ 20 mi.\n",
+          "\n",
+          "PV, EV E AC NO FATO SÃO ACUMULADOS. Em gold.fato_projeto_semana as colunas ev_dinheiro,\n",
+          "pv_dinheiro e ac_dinheiro são o acumulado do projeto ATÉ aquela sexta. Pode somar os\n",
+          "PROJETOS dentro de uma mesma semana. NUNCA some semanas: isso contaria o mesmo dinheiro\n",
+          "várias vezes. Para a série do SPI da carteira: GROUP BY semana e\n",
+          "SUM(ev_dinheiro)/SUM(pv_dinheiro).\n",
+          "\n",
+          "AS DUAS FONTES DE AVANÇO, e é importante não confundir. O status semanal é o que o\n",
+          "gerente DIZ (gold.fato_projeto_semana). O cronograma é o que as tarefas das três\n",
+          "ferramentas MOSTRAM (gold.projeto_situacao_atual). O SPI da carteira pelas tarefas é\n",
+          "0,92; pelo status semanal é 0,87. Quando a pergunta for sobre hoje, use as tarefas\n",
+          "(projeto_situacao_atual ou mv_projetos). Quando for sobre tendência, use o status\n",
+          "semanal, e diga que é o status.\n",
+          "\n",
+          "FAROL E MELANCIA. farol_calculado é a conta: verde com SPI >= 0,95, amarelo >= 0,90,\n",
+          "vermelho abaixo. farol_do_gerente é o que o gerente reportou. MELANCIA é farol do gerente\n",
+          "VERDE com SPI abaixo de 0,9: verde por fora, atrasado por dentro. A coluna melancia é\n",
+          "BOOLEAN. Hoje são 4 melancias.\n",
+          "\n",
+          "DOMÍNIOS EXATOS, use estes valores literais:\n",
+          "  status: 'em_andamento' ou 'concluido' (com underscore e SEM acento). Nunca escreva\n",
+          "    'em andamento' nem 'concluído'.\n",
+          "  situacao: 'ok', 'atencao', 'critico' (sem acento).\n",
+          "  farol_calculado e farol_do_gerente: 'verde', 'amarelo', 'vermelho'.\n",
+          "  segmento: 'varejo', 'financeiro', 'industria', 'saude', 'logistica'.\n",
+          "  ferramenta: 'excel', 'clickup', 'msproject'.\n",
+          "  faixa_risco: 'alto', 'medio', 'baixo'.\n",
+          "  categoria_bloqueio, os SETE valores possíveis e nada além deles:\n",
+          "    'falta de gente ou papel nao alocado', 'fornecedor atrasou entrega',\n",
+          "    'mudanca de escopo', 'falha tecnica de ambiente', 'aprovacao pendente do cliente',\n",
+          "    'dificuldade tecnica na solucao', 'outros'.\n",
+          "\n",
+          "POR QUE O PROJETO X ATRASOU. Responda com gold.status_estruturado dos últimos 90 dias\n",
+          "filtrando projeto_id, e traga: a categoria_bloqueio mais frequente, em quantas semanas\n",
+          "ela apareceu, a soma de dias_impacto declarados e um ou dois corpo_bloqueio como citação.\n",
+          "ATENÇÃO: status_estruturado JÁ CONTÉM SOMENTE os status com bloqueio real dos últimos 90\n",
+          "dias (163 linhas). Não existe e não precisa excluir nenhuma categoria de \"sem bloqueio\"\n",
+          "ou \"não reportado\" -- esses valores não existem nesta tabela.\n",
+          "Junte sempre o SPI e o CPI de hoje do projeto (projeto_situacao_atual), para a resposta\n",
+          "ter o tamanho do problema, e não só a causa.\n",
+          "Quando a causa for FALTA DE GENTE, use a coluna BOOLEAN falta_de_gente, não a categoria:\n",
+          "a IA divide o mesmo bloqueio entre 'falha tecnica de ambiente' e 'falta de gente ou papel\n",
+          "nao alocado', e só o booleano pega as duas. No PRJ-011, falta_de_gente é verdadeiro nas 12\n",
+          "semanas, somando 57 dias de impacto declarado. Nesse caso complete a resposta com as\n",
+          "pessoas do papel que falta que estão OCIOSAS (gold.utilizacao_pessoa_semana, 12 semanas):\n",
+          "existem dois SREs com menos de 20% de uso, COL0017 e COL0018, alocados no PRJ-007.\n",
+          "\n",
+          "GENTE PARADA. Pessoa parada = utilização abaixo de 20% nas 12 semanas, isto é\n",
+          "SUM(horas_apontadas) / SUM(horas_disponiveis) < 0,20 com GROUP BY colaborador_id em\n",
+          "gold.utilizacao_pessoa_semana. A coluna pct_utilizacao_12s existe, mas é NULL quando a\n",
+          "pessoa ainda não tem a janela de 12 semanas cheia: prefira recalcular com SUM/SUM, que\n",
+          "nunca devolve NULL em silêncio.\n",
+          "O GRÃO DESTA TABELA É PESSOA E SEMANA. NÃO existe grão por pessoa e projeto aqui: para\n",
+          "dizer em QUE projeto a pessoa está, use max_by(projeto_principal, horas_apontadas).\n",
+          "Traga sempre colaborador_id, nome, papel, o percentual e o projeto: \"COL0017, SRE, 5,8%\n",
+          "de uso, no PRJ-007\" é a resposta útil; \"COL0017 está parado\" não é.\n",
+          "A outra metade da pergunta é \"enquanto outro projeto pede gente\": cruze com\n",
+          "status_estruturado dos últimos 90 dias onde falta_de_gente é verdadeiro, para mostrar o\n",
+          "projeto que PEDE o papel ao lado da pessoa que está parada.\n",
+          "\n",
+          "FORNECEDOR. Use silver.entregas_fornecedor. A medida de confiança é\n",
+          "AVG(prazo_real_dias / prazo_prometido_dias), a MÉDIA DAS RAZÕES por entrega -- acima de 1\n",
+          "o fornecedor costuma estourar o prazo. Percentual no prazo = entregas com\n",
+          "dias_de_atraso_na_entrega <= 0 sobre as que já foram entregues (em_aberto falso).\n",
+          "\"Em atraso hoje\" é a coluna em_atraso. Use sempre a coluna fornecedor, que está\n",
+          "normalizada: fornecedor_como_veio guarda as grafias originais, e a CodeForge chegou\n",
+          "escrita de 4 jeitos -- sem a normalização ela viraria quatro fornecedores, nenhum com\n",
+          "atraso visível. Medido hoje: 5 entregas em atraso, todas da CodeForge, cujo prazo real\n",
+          "sobre prometido é 1,41 e o percentual no prazo é 0%.\n",
+          "\n",
+          "O QUE VAI DAR ERRADO NO PRÓXIMO MÊS. Três peças, nesta ordem:\n",
+          "  1. gold.score_estouro_30d, com data_referencia = DATE'2026-10-16'. ranking 1 é o mais\n",
+          "     arriscado; traga prob_estouro_30d, faixa_risco e principais_fatores, que já vêm em\n",
+          "     português. São os 41 projetos em andamento. Comece por aqui.\n",
+          "  2. As entregas de consultoria em atraso (silver.entregas_fornecedor, em_atraso\n",
+          "     verdadeiro) nos projetos envolvidos.\n",
+          "  3. O CHANGE FREEZE DE VAREJO, de 01/11/2026 a 10/01/2027: nenhuma mudança entra em\n",
+          "     produção no varejo nesse período. Ele atinge os projetos com segmento = 'varejo' e\n",
+          "     tipo_projeto de e-commerce ('Nova plataforma de e-commerce', 'Checkout e meios de\n",
+          "     pagamento', 'Marketplace de sellers', 'Integração omnichannel') cuja entrega cai\n",
+          "     dentro da janela (data_fim_baseline >= DATE'2026-11-01'). O change freeze não está\n",
+          "     em nenhuma coluna: é esta regra de calendário.\n",
+          "\n",
+          "QUAIS CLIENTES. Quando a pergunta for \"de quais clientes\" ou \"quais clientes\", devolva\n",
+          "CADA CLIENTE UMA VEZ: SELECT DISTINCT cliente, ou GROUP BY cliente com a contagem de\n",
+          "projetos ao lado. Nunca repita o mesmo cliente uma vez por projeto. Hoje são 17 projetos\n",
+          "em risco distribuídos em 13 clientes, porque quatro clientes têm dois projetos cada.\n",
+          "\n",
+          "RÉGUAS PARA VOCÊ SE CONFERIR (16/10/2026): 60 projetos, 41 em andamento e 19 concluídos.\n",
+          "7 críticos e 10 em atenção, 17 em risco. Carteira R$ 208,63 mi. Estouro previsto\n",
+          "R$ 6,47 mi. SPI da carteira 0,92 e CPI 0,97. 4 melancias: PRJ-012, PRJ-028, PRJ-034 e\n",
+          "PRJ-042. Custo real total R$ 193,35 mi. 163 status classificados nos últimos 90 dias. Se\n",
+          "o seu número ficar muito longe de um destes, revise o filtro de status e o de data antes\n",
+          "de responder.\n"
+        ]
+      }
+    ]
+  }
+}

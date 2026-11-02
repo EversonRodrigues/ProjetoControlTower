@@ -16,3 +16,25 @@ bin-release/
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+
+# --- bundle Databricks (vindo do bundle init) ---
+.databricks/
+build/
+dist/
+__pycache__/
+*.egg-info
+.venv/
+scratch/**
+!scratch/README.md
+**/explorations/**
+**/!explorations/README.md
+
+# --- app Databricks (minha-torre/) ---
+node_modules/
+.playwright-mcp/
+
+# --- ferramental local do agente ---
+# As skills do Databricks sao VENDORADAS: vem de `databricks aitools install`
+# e sao ~155 arquivos de documentacao que nao fazem parte do projeto.
+# settings.local.json e preferencia de maquina, nao de repositorio.
+.claude/

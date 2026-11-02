@@ -1,0 +1,46 @@
+# Bundle do Projeto Farol · Vértice Tecnologia.
+# Um bundle só, na raiz do repositório, ao lado do CLAUDE.md.
+# https://docs.databricks.com/dev-tools/bundles/index.html
+bundle:
+  name: vertice
+  uuid: 89666c86-3b64-451c-ad99-251a6eb926ca
+
+include:
+  - resources/*.yml
+
+# O app minha-torre/ é um bundle PRÓPRIO dentro desta pasta. Sem este
+# exclude o deploy do vertice subiria o node_modules inteiro do app.
+sync:
+  exclude:
+    - minha-torre/**
+
+variables:
+  catalog:
+    description: catálogo do lakehouse da Vértice (bronze, silver e gold)
+    default: lakehouse_vertice
+  warehouse_id:
+    description: SQL warehouse que roda as sql_task (Serverless Starter Warehouse)
+    default: 47307f0445a667ac
+  s3_access_key_id:
+    description: chave do data lake (o valor fica fora do Git)
+  s3_secret_access_key:
+    description: chave do data lake (o valor fica fora do Git)
+
+targets:
+  dev:
+    default: true
+    # Sem `mode: development` de propósito: ele prefixaria todo recurso
+    # com "[dev everson101288]". Em troca, pausamos o agendamento na mão.
+    presets:
+      trigger_pause_status: PAUSED
+    workspace:
+      host: https://dbc-73ba6d88-0c16.cloud.databricks.com
+  prod:
+    mode: production
+    workspace:
+      host: https://dbc-73ba6d88-0c16.cloud.databricks.com
+      # Deploy explícito para garantir uma única cópia.
+      root_path: /Workspace/Users/everson101288@gmail.com/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: everson101288@gmail.com
+        level: CAN_MANAGE

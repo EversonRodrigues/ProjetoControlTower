@@ -1,0 +1,18 @@
+# O medalhão: um pipeline declarativo só, para silver e gold.
+# O schema padrão do pipeline é a silver — por isso, dentro dos .sql,
+# tabela silver se chama pelo nome seco e a bronze pelo nome completo.
+# A gold entra pelo segundo glob: ela usa o nome completo
+# (lakehouse_vertice.gold.x) porque o schema padrao do pipeline e a silver.
+resources:
+  pipelines:
+    vertice_medalhao:
+      name: vertice_medalhao
+      catalog: ${var.catalog}
+      schema: silver
+      serverless: true
+      photon: true
+      libraries:
+        - glob:
+            include: ../src/silver/**
+        - glob:
+            include: ../src/gold/**

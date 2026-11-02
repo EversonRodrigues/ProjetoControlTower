@@ -1,0 +1,133 @@
+[
+  {
+    "pergunta": "Quantos projetos estão em andamento e quantos já foram concluídos?",
+    "como_verificar": "numero",
+    "esperado": [41, 19],
+    "tolerancia": 0,
+    "porque": "o domínio é em_andamento/concluido, com underscore e sem acento"
+  },
+  {
+    "pergunta": "Quantos projetos estão críticos e quantos estão em atenção hoje?",
+    "como_verificar": "numero",
+    "esperado": [7, 10],
+    "tolerancia": 0,
+    "porque": "corte 0,8 e 0,9 sobre o pior índice, só em andamento"
+  },
+  {
+    "pergunta": "Liste os projetos em andamento que estão críticos, com o cliente de cada um.",
+    "como_verificar": "linhas",
+    "esperado": 7,
+    "porque": "tem que filtrar situacao = 'critico' e status em andamento"
+  },
+  {
+    "pergunta": "Qual é o SPI e o CPI da carteira de projetos em andamento?",
+    "como_verificar": "numero",
+    "esperado": [0.92, 0.97],
+    "tolerancia": 0.015,
+    "porque": "razão de somas pela mv_projetos; AVG(spi) daria outro número"
+  },
+  {
+    "pergunta": "De quais clientes são os projetos que estão atrasados? Liste cada cliente uma vez.",
+    "como_verificar": "distinto",
+    "esperado": null,
+    "porque": "17 projetos em risco mas só 13 clientes: quatro têm dois projetos cada"
+  },
+  {
+    "pergunta": "Quanto o atraso vai me custar? Qual o estouro previsto total dos projetos em andamento?",
+    "como_verificar": "numero_qualquer",
+    "esperado": [6.47, 6470000],
+    "tolerancia": 0.02,
+    "porque": "R$ 6,47 mi; aceita a prosa arredondada ou o valor cru da linha"
+  },
+  {
+    "pergunta": "Qual é o valor total da carteira de projetos em andamento?",
+    "como_verificar": "numero_qualquer",
+    "esperado": [208.63, 208630000],
+    "tolerancia": 0.02,
+    "porque": "MEASURE(carteira) na mv_projetos"
+  },
+  {
+    "pergunta": "Qual é o custo real total já lançado nos projetos?",
+    "como_verificar": "numero_qualquer",
+    "esperado": [193.35, 193350000],
+    "tolerancia": 0.02,
+    "porque": "R$ 193,35 mi, a régua que prova que nenhum centavo se perdeu na limpeza"
+  },
+  {
+    "pergunta": "Quais projetos são melancia, ou seja, farol do gerente verde com SPI abaixo de 0,9?",
+    "como_verificar": "conjunto",
+    "esperado": ["PRJ-012", "PRJ-028", "PRJ-034", "PRJ-042"],
+    "porque": "a flag melancia é BOOLEAN e já está calculada na gold"
+  },
+  {
+    "pergunta": "Qual é a margem projetada da carteira de projetos em andamento?",
+    "como_verificar": "numero_qualquer",
+    "esperado": [0.2044, 20.44],
+    "tolerancia": 0.05,
+    "porque": "MEASURE(margem_projetada) é razão de somas, não AVG da margem por projeto"
+  },
+  {
+    "pergunta": "Tenho gente parada enquanto outro projeto pede gente?",
+    "como_verificar": "contem",
+    "esperado": ["COL0017", "COL0018", "PRJ-007"],
+    "porque": "a resposta útil tem a pessoa E o projeto onde ela está parada"
+  },
+  {
+    "pergunta": "Quais SREs estão com menos de 20% de utilização nas últimas 12 semanas?",
+    "como_verificar": "conjunto",
+    "esperado": ["COL0017", "COL0018"],
+    "porque": "SUM/SUM na janela de 12 semanas, não a coluna pct_utilizacao_12s que pode ser NULL"
+  },
+  {
+    "pergunta": "Qual é a utilização das últimas 12 semanas do colaborador COL0017?",
+    "como_verificar": "numero_qualquer",
+    "esperado": [0.058, 5.8],
+    "tolerancia": 0.1,
+    "porque": "aceita fração e percentual: o Genie pode responder 0,058 ou 5,8%"
+  },
+  {
+    "pergunta": "Em qual projeto estão alocados o COL0017 e o COL0018?",
+    "como_verificar": "contem",
+    "esperado": ["PRJ-007"],
+    "porque": "o grão é pessoa e semana: a resposta sai de projeto_principal"
+  },
+  {
+    "pergunta": "Por que o projeto PRJ-011 atrasou?",
+    "como_verificar": "contem",
+    "esperado": ["falta"],
+    "nao_esperado": ["sem_bloqueio", "nao_reportado"],
+    "porque": "a causa é falta de SRE, e esses dois valores não existem no dado"
+  },
+  {
+    "pergunta": "Quantos dias de impacto o projeto PRJ-011 declarou nos status dos últimos 90 dias?",
+    "como_verificar": "numero",
+    "esperado": [57],
+    "tolerancia": 0.05,
+    "porque": "é soma de dias_impacto, não média"
+  },
+  {
+    "pergunta": "Quantos status semanais foram classificados pela IA nos últimos 90 dias?",
+    "como_verificar": "numero",
+    "esperado": [163],
+    "tolerancia": 0,
+    "porque": "a tabela só tem os status com bloqueio real"
+  },
+  {
+    "pergunta": "O que vai dar errado no próximo mês?",
+    "como_verificar": "contem",
+    "esperado": ["PRJ-"],
+    "porque": "tem que nomear projeto, não falar em tese; o score é a primeira peça"
+  },
+  {
+    "pergunta": "Qual projeto está em primeiro lugar no ranking de risco de estouro em 30 dias?",
+    "como_verificar": "contem",
+    "esperado": ["PRJ-016"],
+    "porque": "ranking = 1 na score_estouro_30d"
+  },
+  {
+    "pergunta": "Quantas entregas de fornecedor estão em atraso hoje, e de qual fornecedor?",
+    "como_verificar": "contem",
+    "esperado": ["5", "CodeForge"],
+    "porque": "5 entregas, todas da mesma consultoria"
+  }
+]
