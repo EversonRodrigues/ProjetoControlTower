@@ -415,4 +415,22 @@ Documentar o que falta é parte do trabalho:
 
 ---
 
-<sub>Projeto técnico desenvolvido na Imersão Jornada de Dados. Dados sintéticos; a Vértice Tecnologia é uma empresa fictícia.</sub>
+## 12. Créditos
+
+**Everson Rodrigues** — [github.com/EversonRodrigues](https://github.com/EversonRodrigues)
+
+Projeto construído por mim de ponta a ponta: modelagem das camadas silver e gold, a
+integração das três ferramentas em `silver.tarefas`, as métricas de EVM, a classificação
+dos status com IA, o modelo de risco, a métrica governada, o dashboard, o Genie Agent com
+o seu benchmark e a aplicação em React.
+
+O enunciado, o dataset sintético (semente 42) e as quatro perguntas do dono vêm da
+**Imersão Jornada de Dados** ([lvgalvao/ImersaoControlTower](https://github.com/lvgalvao/ImersaoControlTower)),
+cujo gabarito eu deliberadamente não copiei — o conteúdo do exercício é construir.
+
+Os prompts que conduziram cada etapa estão versionados em `llm/`, junto do código que
+produziram.
+
+---
+
+<sub>Dados sintéticos; a Vértice Tecnologia é uma empresa fictícia.</sub>
