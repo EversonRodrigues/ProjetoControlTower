@@ -75,8 +75,13 @@ QUAL TABELA USAR.
     gerente, status, situação, farol): gold.mv_projetos, com MEASURE(). É a métrica
     governada. Medidas disponíveis: projetos, carteira, orcamento, custo_real, ev, spi,
     cpi, eac, estouro_previsto, margem_projetada, projetos_em_risco, projetos_criticos,
-    projetos_em_atencao, melancias, atraso_projetado_dias. Para "em andamento" filtre
-    WHERE status = 'em_andamento'.
+    projetos_em_atencao, melancias, atraso_projetado_dias.
+    FILTRE SEMPRE WHERE status = 'em_andamento', a nao ser que a pergunta peca
+    explicitamente os concluidos ou a empresa inteira. Projeto concluido nao esta
+    atrasado, critico nem em atencao HOJE. As palavras "hoje", "em risco", "critico",
+    "em atencao", "atrasado" e "melancia" JA significam em andamento, mesmo sem a
+    pergunta dizer. Sem esse filtro "quantos projetos estao criticos" devolve 10 em vez
+    de 7, porque entram 3 projetos que ja terminaram.
   - RANKING, LISTA E DETALHE DE PROJETO: gold.projeto_situacao_atual, uma linha por
     projeto (60 linhas), já com o cadastro. Toda pergunta "quais projetos" ou "top N"
     vem daqui, nunca da mv_projetos.

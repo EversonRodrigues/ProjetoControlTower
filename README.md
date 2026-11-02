@@ -159,7 +159,87 @@ Três decisões que fizeram isso ser viável:
 
 ---
 
-## 6. Stack
+## 6. O Genie: perguntar em português — e como eu testo isso
+
+Toda a engenharia acima não vale nada se o dono da empresa precisar de um analista
+disponível para fazer uma pergunta. Por isso a plataforma publica um **Genie Agent**
+(`Farol · Diretoria`): uma interface em linguagem natural sobre a camada gold, em que o
+diretor pergunta em português e recebe o número **junto com o SQL que o produziu**.
+
+```
+"Quais projetos estão atrasados, e de quais clientes?"
+"Quanto esse atraso vai me custar?"
+"Tenho gente parada enquanto outro projeto pede gente?"
+"Por que o PRJ-011 atrasou?"
+"O que vai dar errado no próximo mês?"
+```
+
+O agente é **código**, não configuração de tela: `resources/farol.geniespace.json` é
+gerado por `scripts/gerar_genie.py` com **ids determinísticos** (contador, não UUID), de
+forma que regerar o arquivo produz exatamente os mesmos bytes — o diff mostra só a
+mudança real, e o agente pode ser revisado em *pull request* como qualquer outro artefato.
+
+### A parte que eu mais defendo: o benchmark
+
+Publicar um Genie é fácil. **Saber se ele está respondendo certo é o problema de
+engenharia de verdade** — e é o que quase ninguém faz.
+
+`llm/genie-benchmark.json` tem **20 perguntas com a resposta correta conhecida**, versionadas
+junto do código. Cada uma declara como deve ser verificada (`numero`, `conjunto`, `linhas`,
+`distinto`, `contem`) e **por que a pergunta existe** — qual armadilha ela testa:
+
+```json
+{
+  "pergunta": "Qual é o SPI e o CPI da carteira de projetos em andamento?",
+  "como_verificar": "numero",
+  "esperado": [0.92, 0.97],
+  "tolerancia": 0.015,
+  "porque": "razão de somas pela mv_projetos; AVG(spi) daria outro número"
+}
+```
+
+```bash
+python scripts/genie.py benchmark "Farol · Diretoria" llm/genie-benchmark.json --profile MEU_PERFIL
+```
+
+**O julgamento é por regra declarada, não por um juiz LLM.** Essa foi uma decisão
+deliberada: usar um modelo como juiz colocaria variância no próprio instrumento de
+medida. Quando a nota caísse, eu não saberia dizer se o Genie piorou ou se o juiz mudou
+de ideia — e o ciclo de melhoria perderia o sinal. As respostas certas são números
+conhecidos de um dataset com semente fixa, então uma regra dá um placar **auditável e
+reproduzível**.
+
+A verificação procura o valor esperado no texto da resposta **e** nas linhas do resultado
+achatadas. Assim um número que o Genie arredondou na prosa ("R$ 6,5 mi") ainda é
+encontrado no valor cru da linha — a nota mede **o SQL que ele escreveu**, que é o que a
+instrução controla, e não a redação dele.
+
+### O que o benchmark encontrou
+
+Placar atual: **20/20**, com variação ocasional de 19/20 entre execuções (o modelo não é
+determinístico — e o benchmark existe justamente para tornar isso visível em vez de
+suposto).
+
+O benchmark pagou por si na primeira rodada, pegando uma falha que eu não teria achado
+olhando a tela. À pergunta *"quantos projetos estão críticos e quantos em atenção **hoje**?"*
+o Genie respondia **10 e 11** em vez de 7 e 10. O SQL que ele gerou estava sintaticamente
+perfeito e usava a métrica governada corretamente — ele só havia omitido
+`WHERE status = 'em_andamento'`, e assim contava 3 projetos críticos **que já tinham sido
+concluídos**.
+
+A causa não estava no dado nem na métrica: estava na instrução, que dizia *"para 'em
+andamento', filtre por status"* — uma condicional. O usuário escreveu "hoje", não "em
+andamento". A correção foi tornar a regra um **padrão** em vez de uma condicional: as
+palavras "hoje", "em risco", "crítico", "em atenção" e "melancia" já significam em
+andamento, porque um projeto concluído não está atrasado hoje.
+
+Uma linha de instrução, e a nota foi de 19/20 para 20/20. É o tipo de erro que um
+dashboard nunca comete e um agente comete sempre — e a única razão de eu tê-lo
+encontrado é que existe um teste.
+
+---
+
+## 7. Stack
 
 | Camada | Tecnologia |
 |---|---|
@@ -177,7 +257,7 @@ Três decisões que fizeram isso ser viável:
 
 ---
 
-## 7. Estrutura do repositório
+## 8. Estrutura do repositório
 
 ```
 ├── databricks.yml              # o bundle: variáveis, targets (dev/prod), exclusões de sync
@@ -201,7 +281,7 @@ Três decisões que fizeram isso ser viável:
 
 ---
 
-## 8. Como rodar
+## 9. Como rodar
 
 ### Pré-requisitos
 
@@ -295,7 +375,7 @@ databricks apps validate --profile MEU_PERFIL   # tipos + lint + typecheck + bui
 
 ---
 
-## 9. Qualidade
+## 10. Qualidade
 
 A plataforma não confia em si mesma por padrão. A validação acontece em quatro níveis:
 
@@ -305,6 +385,7 @@ A plataforma não confia em si mesma por padrão. A validação acontece em quat
 | **Reconciliação** | O custo total tem que ser idêntico entre bronze e silver; as horas de cada planilha têm que bater com a linha de TOTAL digitada pelo gerente |
 | **Tarefa dedicada no job** | `testes_de_qualidade` roda depois do medalhão e falha o job inteiro se algo não fecha |
 | **Na aplicação** | 23 testes unitários (Vitest) sobre a aritmética do simulador e as conversões de tipo, mais typecheck, ESLint e ast-grep no pipeline de validação |
+| **No Genie** | 20 perguntas de benchmark com resposta conhecida, julgadas por regra declarada (não por juiz LLM). Placar atual **20/20** |
 
 ### Notas de reprodutibilidade
 
@@ -314,12 +395,13 @@ A plataforma não confia em si mesma por padrão. A validação acontece em quat
 
 ---
 
-## 10. Pendências conhecidas
+## 11. Pendências conhecidas
 
 Documentar o que falta é parte do trabalho:
 
 - **Calibrar `score_estouro_30d`** — modelo saturado (26 de 41 projetos em "alto risco"), provável vazamento de variável. A aplicação já exibe o resultado de forma honesta, mas o modelo precisa de revisão.
-- **Tela "Perguntar"** — integração do Genie dentro da aplicação, para perguntas em linguagem natural. O espaço de Genie já existe como código em `resources/`; falta a terceira aba.
+- **Tela "Perguntar"** — o Genie Agent está no ar e versionado (seção 6), mas ainda é consumido pela interface do Databricks e pela CLI. Falta embuti-lo como terceira aba da aplicação.
+- **Variância do Genie** — o placar oscila entre 19/20 e 20/20 entre execuções, porque o modelo não é determinístico. O benchmark torna isso mensurável, mas estabilizar a pergunta que oscila exige mais instrução ou mais SQL de exemplo.
 - **Formatação** — o projeto nunca passou integralmente pelo Prettier; apenas os arquivos tocados recentemente estão formatados.
 - **Taxonomia de bloqueio** — as categorias vêm de `ai_classify` em linguagem natural. Consolidá-las num domínio fechado e versionado facilitaria a análise histórica.
 
