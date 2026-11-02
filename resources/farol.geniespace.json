@@ -5,13 +5,13 @@
       {
         "id": "10000000000000000000000000000001",
         "question": [
-          "Quais projetos estão atrasados, e de quais clientes?"
+          "Quais projetos estão em risco e quanto isso vai custar?"
         ]
       },
       {
         "id": "10000000000000000000000000000002",
         "question": [
-          "Quanto esse atraso vai me custar?"
+          "Qual farol verde, na verdade, está vermelho?"
         ]
       },
       {
@@ -22,6 +22,12 @@
       },
       {
         "id": "10000000000000000000000000000004",
+        "question": [
+          "Por que o PRJ-011 atrasou?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000005",
         "question": [
           "O que vai dar errado no próximo mês?"
         ]
@@ -231,12 +237,19 @@
           "    governada. Medidas disponíveis: projetos, carteira, orcamento, custo_real, ev, spi,\n",
           "    cpi, eac, estouro_previsto, margem_projetada, projetos_em_risco, projetos_criticos,\n",
           "    projetos_em_atencao, melancias, atraso_projetado_dias.\n",
-          "    FILTRE SEMPRE WHERE status = 'em_andamento', a nao ser que a pergunta peca\n",
-          "    explicitamente os concluidos ou a empresa inteira. Projeto concluido nao esta\n",
-          "    atrasado, critico nem em atencao HOJE. As palavras \"hoje\", \"em risco\", \"critico\",\n",
-          "    \"em atencao\", \"atrasado\" e \"melancia\" JA significam em andamento, mesmo sem a\n",
-          "    pergunta dizer. Sem esse filtro \"quantos projetos estao criticos\" devolve 10 em vez\n",
-          "    de 7, porque entram 3 projetos que ja terminaram.\n",
+          "\n",
+          "O FILTRO DE STATUS. As duas leituras existem e a pergunta decide qual usar.\n",
+          "  - PERGUNTA DE RISCO, PRAZO OU PREVISAO: filtre WHERE status = 'em_andamento'.\n",
+          "    As palavras \"hoje\", \"em risco\", \"critico\", \"em atencao\", \"atrasado\", \"melancia\",\n",
+          "    \"estouro previsto\", \"SPI\", \"CPI\" e \"margem projetada\" JA significam em andamento,\n",
+          "    mesmo que a pergunta nao diga: projeto concluido nao esta atrasado HOJE. Sem esse\n",
+          "    filtro, \"quantos projetos estao criticos\" devolve 10 em vez de 7, porque entram 3\n",
+          "    projetos que ja terminaram.\n",
+          "  - PERGUNTA SOBRE O QUE JA ACONTECEU (realizado, acumulado, historico, \"ja lancado\",\n",
+          "    \"total da empresa\", \"quantos projetos existem\"): NAO filtre, some os 60 projetos.\n",
+          "    O custo real total ja lancado e R$ 193,35 mi nos 60 projetos, e NAO os R$ 114,5 mi\n",
+          "    dos 41 em andamento. Dinheiro gasto em projeto entregue continua gasto.\n",
+          "  Em duvida, responda a leitura de risco (em andamento) e DIGA qual leitura usou.\n",
           "  - RANKING, LISTA E DETALHE DE PROJETO: gold.projeto_situacao_atual, uma linha por\n",
           "    projeto (60 linhas), já com o cadastro. Toda pergunta \"quais projetos\" ou \"top N\"\n",
           "    vem daqui, nunca da mv_projetos.\n",

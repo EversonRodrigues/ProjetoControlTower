@@ -229,13 +229,21 @@ concluídos**.
 
 A causa não estava no dado nem na métrica: estava na instrução, que dizia *"para 'em
 andamento', filtre por status"* — uma condicional. O usuário escreveu "hoje", não "em
-andamento". A correção foi tornar a regra um **padrão** em vez de uma condicional: as
-palavras "hoje", "em risco", "crítico", "em atenção" e "melancia" já significam em
-andamento, porque um projeto concluído não está atrasado hoje.
+andamento".
 
-Uma linha de instrução, e a nota foi de 19/20 para 20/20. É o tipo de erro que um
-dashboard nunca comete e um agente comete sempre — e a única razão de eu tê-lo
-encontrado é que existe um teste.
+Minha primeira correção foi grosseira — *"filtre sempre por em andamento"* — e o
+benchmark **me pegou de novo**, agora numa pergunta diferente: *"qual o custo real total
+já lançado nos projetos?"* passou a devolver R$ 114,5 mi em vez de R$ 193,35 mi, porque o
+Genie passou a excluir os 19 projetos concluídos. Dinheiro gasto em projeto entregue
+continua gasto.
+
+A correção certa teve que ensinar a **distinção**, não uma regra única: pergunta de
+*risco ou previsão* (crítico, em risco, SPI, estouro) assume em andamento; pergunta sobre
+*o que já aconteceu* (realizado, acumulado, "já lançado") soma os 60 projetos.
+
+Nota: 19/20 → 20/20. É o tipo de erro que um dashboard nunca comete e um agente comete
+sempre — e as duas únicas razões de eu tê-los encontrado, e de saber que a primeira
+tentativa tinha piorado outra coisa, é que existe um teste.
 
 ---
 

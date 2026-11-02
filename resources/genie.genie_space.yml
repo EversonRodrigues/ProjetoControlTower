@@ -12,10 +12,20 @@ resources:
   genie_spaces:
     genie_farol:
       title: Farol · Diretoria
-      description: >-
-        As quatro perguntas do dono da Vértice respondidas em português, sobre a gold do
-        Projeto Farol na fotografia de 16/10/2026: quais projetos estão atrasados e de
-        quais clientes, quanto o atraso vai custar, quem está parado enquanto outro
-        projeto pede gente e o que vai dar errado no próximo mês.
+      description: |-
+        Pergunte o que você precisa saber sobre os projetos, em português, e receba a resposta em segundos.
+
+        Eu reúno os dados do Excel, do ClickUp e do MS Project numa visão só e aplico a mesma régua de prazo e custo a todos os projetos. Sem esperar relatório, sem juntar planilha.
+
+        Experimente perguntar:
+
+        • Quais projetos estão em risco e quanto isso vai custar?
+        • Qual farol verde, na verdade, está vermelho?
+        • Tenho gente parada enquanto outro projeto pede gente?
+        • Por que o PRJ-011 atrasou?
+
+        Toda resposta vem com o SQL que a gerou, para você conferir de onde saiu o número. Para simular em reais o impacto de realocar alguém, use a aba Simulador do Projeto Farol.
+
+        Sua próxima pergunta não precisa esperar a próxima análise.
       warehouse_id: ${var.warehouse_id}
       file_path: ./farol.geniespace.json

@@ -48,11 +48,21 @@ TABELAS = sorted(
     ]
 )
 
-# As 4 perguntas do dono, como perguntas de exemplo do espaco.
+# As perguntas de exemplo do espaco -- os "chips" que o usuario clica.
+#
+# Sao as MESMAS que a descricao do espaco manda experimentar
+# (resources/genie.genie_space.yml): se a descricao sugere uma pergunta e o
+# botao oferece outra, o usuario estranha na primeira tela.
+#
+# Todas foram verificadas contra o espaco no ar. Deliberadamente NAO entra aqui
+# "e se eu realocar uma pessoa?": a conta em reais dessa simulacao vive no app
+# (aba Simulador), nao no Genie -- ele recusa a pergunta, com razao, e uma
+# sugestao que nao responde e a pior primeira impressao possivel.
 PERGUNTAS_DO_DONO = [
-    "Quais projetos estão atrasados, e de quais clientes?",
-    "Quanto esse atraso vai me custar?",
+    "Quais projetos estão em risco e quanto isso vai custar?",
+    "Qual farol verde, na verdade, está vermelho?",
     "Tenho gente parada enquanto outro projeto pede gente?",
+    "Por que o PRJ-011 atrasou?",
     "O que vai dar errado no próximo mês?",
 ]
 
@@ -76,12 +86,19 @@ QUAL TABELA USAR.
     governada. Medidas disponíveis: projetos, carteira, orcamento, custo_real, ev, spi,
     cpi, eac, estouro_previsto, margem_projetada, projetos_em_risco, projetos_criticos,
     projetos_em_atencao, melancias, atraso_projetado_dias.
-    FILTRE SEMPRE WHERE status = 'em_andamento', a nao ser que a pergunta peca
-    explicitamente os concluidos ou a empresa inteira. Projeto concluido nao esta
-    atrasado, critico nem em atencao HOJE. As palavras "hoje", "em risco", "critico",
-    "em atencao", "atrasado" e "melancia" JA significam em andamento, mesmo sem a
-    pergunta dizer. Sem esse filtro "quantos projetos estao criticos" devolve 10 em vez
-    de 7, porque entram 3 projetos que ja terminaram.
+
+O FILTRO DE STATUS. As duas leituras existem e a pergunta decide qual usar.
+  - PERGUNTA DE RISCO, PRAZO OU PREVISAO: filtre WHERE status = 'em_andamento'.
+    As palavras "hoje", "em risco", "critico", "em atencao", "atrasado", "melancia",
+    "estouro previsto", "SPI", "CPI" e "margem projetada" JA significam em andamento,
+    mesmo que a pergunta nao diga: projeto concluido nao esta atrasado HOJE. Sem esse
+    filtro, "quantos projetos estao criticos" devolve 10 em vez de 7, porque entram 3
+    projetos que ja terminaram.
+  - PERGUNTA SOBRE O QUE JA ACONTECEU (realizado, acumulado, historico, "ja lancado",
+    "total da empresa", "quantos projetos existem"): NAO filtre, some os 60 projetos.
+    O custo real total ja lancado e R$ 193,35 mi nos 60 projetos, e NAO os R$ 114,5 mi
+    dos 41 em andamento. Dinheiro gasto em projeto entregue continua gasto.
+  Em duvida, responda a leitura de risco (em andamento) e DIGA qual leitura usou.
   - RANKING, LISTA E DETALHE DE PROJETO: gold.projeto_situacao_atual, uma linha por
     projeto (60 linhas), já com o cadastro. Toda pergunta "quais projetos" ou "top N"
     vem daqui, nunca da mv_projetos.
